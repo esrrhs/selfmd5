@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <omp.h>
-#define SIZE 295
+#define SIZE 292
 #define OFF_BLAST3 0x3d
 #define OFF_ESI 0x07
 #define OFF_ENTRY 0x18
@@ -38,7 +38,7 @@ static int hex_ok(const uint8_t *dig){
   return 1;
 }
 int main(int argc,char **argv){
-  const char *path=argc>1?argv[1]:"selfmd5_v6";
+  const char *path=argc>1?argv[1]:"selfmd5";
   int fd=open(path,O_RDWR); if(fd<0){perror(path);return 1;}
   uint8_t templ[SIZE]; if(read(fd,templ,SIZE)!=SIZE){perror("read");return 1;}
   init_K();

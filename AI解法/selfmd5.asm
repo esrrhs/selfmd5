@@ -1,7 +1,7 @@
-; new8: 292-byte self-MD5 (full match). Same arch as new6:
+; AI解法: 292-byte self-MD5 (full md5sum match).
 ; ELF weave + last-block MD5 + IV[3]==0 + hex low-nibble≠0.
-; Micro-opts vs 295: loop-head in p_paddr (rdi=0 at entry), free memsz
-; trampoline for short jnz, page-tail memsz≤64MB, no pop before exit.
+; loop-head in p_paddr (rdi=0 at entry), free memsz trampoline,
+; page-tail memsz≤64MB AS, no pop before exit.
 %define v0 edx
 %define v1 ebx
 %define v2 ebp
