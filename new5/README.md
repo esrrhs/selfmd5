@@ -7,8 +7,10 @@
 
 **297 < 299**（相对原项目 474 也小了 177）。
 
+> 小白向图文说明（推荐）：[../docs/297-字节方案.md](../docs/297-字节方案.md)
+
 ## Method（汇编 + 碰撞）
-1. **汇编** — 只算 MD5 最后一块；ELF 头/phdr 织入代码（`e_phoff=0x38`）；`fsin` 生成 K[i]；寄存器 MD5 + 因式分解 F/g；复用 argc/argv 做 write/exit；hex 用 `div` + `test edi,edx`（argv 偶地址时稳定打出高低半字节）；`IV[3]==0` 故只存 12 字节 IV（`xor edi,edi`）。
+1. **汇编** — 只算 MD5 最后一块；ELF 头/phdr 织入代码（`e_phoff=0x38`）；`fsin` 生成 K[i]；寄存器 MD5 + 因式分解 F/g；复用 argc/argv 做 write/exit；hex 用 `div` + `test edi,edx`；`IV[3]==0` 故只存 12 字节 IV（`xor edi,edi`）。
 2. **碰撞** — 暴力 `start3` 3 字节 + 页对齐 `org`，直到中间状态 `IV[3]==0`，写回 IV[0..2]，整文件自洽。
 
 ## Build / Verify
