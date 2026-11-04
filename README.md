@@ -515,3 +515,69 @@ vmovdqu	.LC2(%rip), %xmm0
 ll selfmd5-test
 -rwxr-xr-x 1 root root 474 4月  20 10:35 selfmd5-test
 ```
+
+# 297 字节方案
+
+在原 474 字节「打开自身再算 MD5」路线之外，本仓库 `new5/` 给出另一条最终方案：**汇编织入 ELF + 碰撞**，得到 **297** 字节、完整匹配 `md5sum` 的 64 位 ELF（小于常见的 299 记录，也小于本项目原始的 474）。
+
+运行效果：
+```
+# wc -c new5/selfmd5_v5
+297 new5/selfmd5_v5
+# ./new5/selfmd5_v5; echo
+cc10068c9e89450201c84f848400fc66
+# md5sum new5/selfmd5_v5
+cc10068c9e89450201c84f848400fc66  new5/selfmd5_v5
+```
+
+## 思路（最终形态）
+
+不再 `open/read` 自己。程序被加载后，内存里已经是整份映像（`PT_LOAD` 的 `memsz` 大于 `filesz`，末尾按页映射出零填充）。代码只做三件事：
+
+1. 在映像末尾就地写上 MD5 填充（`0x80` + 零 + 比特长度 `filesize*8`）；
+2. 用文件里预置的 12 字节中间状态当 IV，**只压缩最后一块**（本尺寸下落在偏移 256）；
+3. 把 16 字节摘要打成十六进制写到 `argv[0]`，`write` 出去。
+
+因此「自输出 MD5」变成一个定点：前若干完整块的压缩结果必须等于写进文件的 IV，且最终摘要等于整文件的真实 MD5。
+
+## 汇编侧怎么压到 297
+
+- **ELF 头 / program header 织进指令流**：`e_phoff=0x38`，入口落在头部附近；`e_machine`、`p_flags`、`p_vaddr`、`p_filesz` 等字段与邻近 opcode 共用字节。
+- **只跑 last-block MD5**：前面块的状态离线算好写进文件，运行时不再扫整文件。
+- **`IV[3]==0`**：第四个字用 `xor edi,edi` 得到，文件里只存 IV 的前 12 字节。
+- **`fsin` 现场算 K[i]**，旋转常量表压缩成 16 字节；F/g 按轮次因式折叠，少指令。
+- **hex**：`div bl`（bl=16）拆半字节，再 `shr eax,8` / `test edi,edx`（edx=argc=1）。`argv[0]` 一般为偶地址时，高低半字节都会打出，无需再撞「半字节非零」。
+- **argc/argv**：弹出的 `argc`/`argv[0]` 直接复用到 `write`/`exit`，少建缓冲。
+
+## 碰撞侧
+
+自由字节主要是：
+
+- `start3` 里 3 字节（blast）；
+- 页对齐的 `org`（同时改写入口、`p_vaddr`、以及指向 IV 的 `esi` 立即数）。
+
+搜索条件只有一个：**前 4 个 64 字节块压缩后 `IV[3]==0`**。命中后把 `IV[0..2]` 写回文件末尾，整文件 MD5 即与程序输出一致。当前冻结结果：
+
+- `org=0x9ef000`，blast=`c0c799`
+- `IV=6b2ff0ee c494181d ca6e2e13`
+- `md5=cc10068c9e89450201c84f848400fc66`
+
+## 构建与校验
+
+```
+cd new5
+python3 build_v5.py          # 汇编并检查，应打印 MATCH
+# 等价：
+# nasm -f bin -o selfmd5_v5 selfmd5_v5.asm && chmod +x selfmd5_v5
+./selfmd5_v5; echo
+md5sum selfmd5_v5
+```
+
+若需重新撞 IV（一般不必，值已写进 `selfmd5_v5.asm`）：
+
+```
+gcc -O3 -fopenmp -o search_v5 search_v5.c -lm
+OMP_NUM_THREADS=8 ./search_v5 selfmd5_v5
+```
+
+源码与说明见 `new5/`：`selfmd5_v5.asm`、`build_v5.py`、`search_v5.c`、`README.md`。
